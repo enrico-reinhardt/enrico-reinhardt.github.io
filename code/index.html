@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Anaglyph</title>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+        />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+
+    <body>
+        <main>
+            <div class="start">
+                <h1>
+                    Anaglyph<br />
+                    Experiments
+                </h1>
+                <p class="accent1">
+                    Setzen Sie Ihre <i class="red">3</i
+                    ><i class="cyan">D</i>-Brille auf.
+                </p>
+                <button id="start">Experience Starten</button>
+                <p class="credit">
+                    <a href="https://github.com/enrico-reinhardt/"
+                        >Enrico Reinhardt</a
+                    >
+                    | FH-Potsdam | Parametric Design | Sebastian Meier
+                </p>
+            </div>
+            <div class="controls hidden">
+                <button class="chevron hidden" id="prev"></button>
+                <button class="chevron" id="next"></button>
+                <button id="restart"></button>
+            </div>
+        </main>
+        <!-- IMPORT POLYFILL -->
+        <script
+            async
+            src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"
+        ></script>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "../build/three.module.js"
+                }
+            }
+        </script>
+
+        <script type="module">
+            // THREE + EFFECT
+            import * as THREE from 'three';
+            import { AnaglyphEffect } from './jsm/effects/AnaglyphEffect.js';
+
+            // DEGREES TO RADIANS
+            function radians(degrees) {
+                return (degrees * Math.PI) / 180;
+            }
+
+            // GLOBAL VAR
+            let container;
+            let camera;
+            let scene;
+            let renderer;
+            let effect;
+
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            let widthhalf = width / 2;
+            let heighthalf = height / 2;
+
+            let mouseX = 0;
+            let mouseY = 0;
+
+            let cameraparams = {
+                x: 0,
+                y: 0,
+                z: 10,
+                rx: 0,
+                ry: 0,
+                rz: 0,
+                atx: 0,
+            };
+
+            // ON WINDOW RESIZE
+            window.addEventListener('resize', onWindowResize);
+            function onWindowResize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                widthhalf = window.innerWidth / 2;
+                heighthalf = window.innerHeight / 2;
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                effect.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            // RUN ANIMATION
+            init();
+            animate();
+
+            function init() {
+                // BUTTONS
+                const buttonstart = document.getElementById('start');
+                const buttonnext = document.getElementById('next');
+                const buttonprev = document.getElementById('prev');
+
+                // START SCREEN
+                buttonstart.addEventListener('click', () => {
+                    document.querySelector('.start').classList.add('hidden');
+                    document
+                        .querySelector('.controls')
+                        .classList.remove('hidden');
+                });
+
+                // SET OBJECT INDEX
+                let currentobject = 1;
+                buttonnext.addEventListener('click', () => {
+                    if (currentobject >= 0 && currentobject < 3) {
+                        currentobject++;
+                    }
+                    setcamerapos(currentobject);
+                    // return currentobject;
+                });
+                buttonprev.addEventListener('click', () => {
+                    if (currentobject < 5 && currentobject > 1) {
+                        currentobject--;
+                    }
+                    setcamerapos(currentobject);
+                    // return currentobject;
+                });
+
+                var timeout;
+                document.onmousemove = function () {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(function () {
+                        document
+                            .querySelector('.start')
+                            .classList.remove('hidden');
+                        document
+                            .querySelector('.controls')
+                            .classList.add('hidden');
+                    }, 10000);
+                };
+
+                let currentpos = 0;
+                let atx = 0;
+                // SET CAMERA POS
+                function setcamerapos(currentobject) {
+                    switch (currentobject) {
+                        case 1:
+                            currentpos = 0;
+                            atx = 0;
+                            buttonnext.classList.remove('hidden');
+                            buttonprev.classList.add('hidden');
+                            break;
+                        case 2:
+                            currentpos = 30;
+                            atx = 30;
+                            buttonnext.classList.remove('hidden');
+                            buttonprev.classList.remove('hidden');
+                            break;
+                        case 3:
+                            currentpos = 60;
+                            atx = 60;
+                            buttonnext.classList.add('hidden');
+                            buttonprev.classList.remove('hidden');
+                            break;
+                    }
+                }
+
+                document.addEventListener('mousemove', (event) => {
+                    const mouseX = event.screenX;
+                    const mouseY = event.screenY;
+                    const offsetY = (widthhalf - mouseY) / 32;
+                    const offsetX = (widthhalf - mouseX) / 32;
+                    cameraparams.x = offsetX + currentpos;
+                    cameraparams.atx = atx;
+                    cameraparams.y = offsetY;
+                });
+
+                console.log('init' + currentobject);
+                // INIT CONTAINER
+                container = document.createElement('div');
+                document.body.appendChild(container);
+
+                //INIT SCENE WITH CAMERA
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(
+                    60,
+                    window.innerWidth / window.innerHeight,
+                    0.01,
+                    100
+                );
+                camera.focalLength = 3;
+
+                // INSERT ELEMENTS
+
+                // Object 1
+
+                const cubesInitial = [];
+                const cubecount = 400;
+
+                for (let index = 0; index < cubecount; index++) {
+                    cubesInitial.push({
+                        w: 12,
+                        h: 0.1,
+                        d: 0.1,
+                        r: radians(4 * index),
+                    });
+                }
+
+                for (let ind = 0; ind < cubesInitial.length; ind++) {
+                    const cubeGeo = new THREE.BoxBufferGeometry(
+                        cubesInitial[ind].w,
+                        cubesInitial[ind].h,
+                        cubesInitial[ind].d,
+                        50
+                    );
+                    const cubeMat = new THREE.MeshPhongMaterial({
+                        color: '#fff',
+                    });
+                    const mesh = new THREE.Mesh(cubeGeo, cubeMat);
+                    mesh.position.set(0, 0, -ind * 0.2 + 15);
+                    mesh.rotation.z = cubesInitial[ind].r;
+                    scene.add(mesh);
+                }
+
+                // OBJECT 2
+                const conesInitial = [];
+                const conecount = 350;
+                for (let index = 0; index < conecount; index++) {
+                    conesInitial.push({
+                        w: 14 + 0.75 * Math.random(),
+                        h: 0.1,
+                        d: 0.1,
+                        r: radians(12.5 * index),
+                    });
+                }
+                const coneMat = new THREE.MeshPhongMaterial({
+                    color: '#fff',
+                });
+                for (let ind = 0; ind < conesInitial.length; ind++) {
+                    const coneGeo = new THREE.ConeGeometry(
+                        conesInitial[ind].h,
+                        conesInitial[ind].w,
+                        32
+                    );
+
+                    const cone = new THREE.Mesh(coneGeo, coneMat);
+                    cone.position.set(30, 0, 0);
+                    cone.rotation.z = Math.random() * 360;
+                    cone.rotation.x = Math.random() * 360;
+                    cone.rotation.y = Math.random() * 360;
+                    scene.add(cone);
+                }
+
+                // OBJECT 2
+                const ballsInitial = [];
+                const ballcount = 10;
+                for (let index = 0; index < ballcount; index++) {
+                    ballsInitial.push({
+                        w: index,
+                        h: 0.4,
+                        d: 0.1,
+                        offset: 10,
+                        r: radians(12.5 * index),
+                    });
+                }
+                const ballMat = new THREE.MeshPhongMaterial({
+                    color: '#fff',
+                });
+                for (let indz = 0; indz < ballsInitial.length; indz++) {
+                    for (let indy = 0; indy < ballsInitial.length; indy++) {
+                        for (let indx = 0; indx < ballsInitial.length; indx++) {
+                            const ballGeo = new THREE.SphereGeometry(
+                                ballsInitial[indx].h,
+                                ballsInitial[indx].h,
+                                0
+                            );
+
+                            const ball = new THREE.Mesh(ballGeo, ballMat);
+                            ball.position.set(
+                                60 + indx - ballcount / 2,
+                                indy - ballcount / 2,
+                                indz - ballcount / 2
+                            );
+                            scene.add(ball);
+                        }
+                    }
+                }
+
+                // GLOBAL SCENE
+                scene.add(
+                    new THREE.HemisphereLight(
+                        'hsl(180,25%,20%)',
+                        'hsl(180,75%,20%)'
+                    )
+                );
+                var light = new THREE.DirectionalLight(0xffffff, 0.5);
+                light.position.set(
+                    cameraparams.x,
+                    cameraparams.y,
+                    cameraparams.z
+                );
+                scene.add(light);
+
+                // RENDER SCENE WITH EFFECT
+                renderer = new THREE.WebGLRenderer();
+                renderer.setPixelRatio(window.devicePixelRatio);
+                effect = new AnaglyphEffect(renderer);
+                effect.setSize(width, height);
+                container.appendChild(renderer.domElement);
+
+                // ON KEYDOWN
+                document.addEventListener('keydown', logKey);
+                function logKey(e) {
+                    // ARROWS
+                    if (e.code === 'ArrowUp') {
+                        cameraparams.x += 0.5;
+                    }
+                    if (e.code === 'ArrowDown') {
+                        cameraparams.x -= 0.5;
+                    }
+                    if (e.code === 'ArrowRight') {
+                        cameraparams.z += 0.5;
+                    }
+                    if (e.code === 'ArrowLeft') {
+                        cameraparams.z -= 0.5;
+                    }
+                    // WASD
+                    if (e.code === 'KeyW') {
+                        cameraparams.ry += radians(10);
+                    }
+                    if (e.code === 'KeyS') {
+                        cameraparams.ry -= radians(10);
+                    }
+                    if (e.code === 'KeyA') {
+                        cameraparams.rx += radians(10);
+                    }
+                    if (e.code === 'KeyD') {
+                        cameraparams.rx -= radians(10);
+                    }
+                }
+            }
+
+            function animate(currentobject) {
+                requestAnimationFrame(animate);
+                // ------- ANIMATE START ------- //
+
+                // SET CAMERA POS
+                camera.position.x = cameraparams.x;
+                camera.position.y = cameraparams.y;
+                camera.position.z = cameraparams.z;
+
+                camera.rotation.x = cameraparams.rz;
+                camera.rotation.y = cameraparams.ry;
+                camera.rotation.z = cameraparams.rz;
+
+                camera.lookAt(cameraparams.atx, 0, 0);
+
+                // -------- ANIMATE END -------- //
+                effect.render(scene, camera);
+                // renderer.render(scene, camera);
+            }
+        </script>
+    </body>
+</html>
